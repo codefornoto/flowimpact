@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>フロー型観光経済波及効果算出シミュレーター</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        #map { height: 600px; width: 100%; border-radius: 8px; z-index: 1; }
+        .custom-popup .leaflet-popup-content-wrapper { border-radius: 4px; padding: 4px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        input[type="range"] { accent-color: #4f46e5; }
+        .mode-active { border-color: #4f46e5; background-color: #f5f3ff; color: #4f46e5; }
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        /* Custom Scrollbar */
+        #spotList::-webkit-scrollbar { width: 4px; }
+        #spotList::-webkit-scrollbar-track { background: #f1f1f1; }
+        #spotList::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen pb-12">
+    <div class="max-w-7xl mx-auto p-4 md:p-8">
+        <!-- Header -->
+        <header class="text-center mb-10">
+            <h1 class="text-3xl font-light tracking-tight text-slate-900 mb-2 uppercase">フロー型観光経済波及効果算出シミュレーター</h1>
+            <p class="text-sm text-slate-500 font-serif italic mb-8 tracking-widest">E = V × (s₀ + Σ(tᵢ × sᵢ))</p>
+            
+            <!-- Hero Stat: E -->
+            <div class="max-w-2xl mx-auto bg-white p-8 rounded-lg shadow-sm border border-slate-200 mb-8">
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-[0.2em] block mb-2">推定 経済波及効果 (E)</span>
+                <span id="statE" class="text-5xl md:text-6xl font-extralight text-slate-900 tracking-tighter">¥0</span>
+            </div>
+
+            <!-- Sub Stats -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+                <div class="bg-white p-5 rounded border border-slate-200 shadow-sm">
+                    <span class="text-[10px] text-slate-400 block font-bold uppercase tracking-wider mb-1">来訪者数 (V)</span>
+                    <span id="statV" class="text-2xl font-light text-slate-800 tracking-tight">0</span>
+                </div>
+                <div class="bg-white p-5 rounded border border-slate-200 shadow-sm">
+                    <span class="text-[10px] text-slate-400 block font-bold uppercase tracking-wider mb-1">中心拠点平均単価 (s₀)</span>
+                    <span id="statS0" class="text-2xl font-light text-slate-800 tracking-tight">¥0</span>
+                </div>
+                <div class="bg-white p-5 rounded border border-slate-200 shadow-sm">
+                    <span class="text-[10px] text-slate-400 block font-bold uppercase tracking-wider mb-1">波及地点数 (n)</span>
+                    <span id="statN" class="text-2xl font-light text-slate-800 tracking-tight">0</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <!-- Sidebar (4 cols) -->
+            <div class="lg:col-span-4 space-y-8">
+                <!-- Operation Mode -->
+                <div class="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+                    <h2 class="text-xs font-bold mb-4 text-slate-400 uppercase tracking-widest">操作モード</h2>
+                    <div class="grid grid-cols-2 gap-4">
+                        <button id="modeCenter" class="py-4 rounded border-2 border-slate-100 text-slate-600 transition-all flex flex-col items-center gap-2 hover:bg-slate-50">
+                            <span class="w-3 h-3 rounded-full bg-slate-300"></span>
+                            <div class="font-bold text-[11px] uppercase tracking-wider">中心拠点設定</div>
+                        </button>
+                        <button id="modeSpot" class="py-4 rounded border-2 border-slate-100 text-slate-600 transition-all flex flex-col items-center gap-2 hover:bg-slate-50">
+                            <span class="w-3 h-3 rounded-full bg-indigo-500 shadow-sm"></span>
+                            <div class="font-bold text-[11px] uppercase tracking-wider">波及地点追加</div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Data Management -->
+                <div class="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+                    <h2 class="text-xs font-bold mb-4 text-slate-400 uppercase tracking-widest">データ管理</h2>
+                    <div class="grid grid-cols-2 gap-4">
+                        <button id="exportBtn" class="bg-slate-900 text-white py-3 rounded text-[11px] font-bold uppercase tracking-widest hover:bg-black transition-colors">JSON出力</button>
+                        <label class="bg-slate-100 text-slate-700 py-3 rounded text-[11px] font-bold uppercase tracking-widest text-center cursor-pointer hover:bg-slate-200 transition-colors">
+                            読み込み
+                            <input type="file" id="importFile" class="hidden" accept=".json">
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Spot List -->
+                <div class="space-y-4">
+                    <h2 class="text-xs font-bold px-1 text-slate-400 uppercase tracking-widest">波及地点リスト (Σ tᵢ × sᵢ)</h2>
+                    <div id="spotList" class="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+                        <!-- 地点カードが動的に挿入されます -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Map Area (8 cols) -->
+            <div class="lg:col-span-8 relative">
+                <div id="map" class="shadow-sm border border-slate-200"></div>
+                
+                <!-- Center Parameters Panel (Floating) -->
+                <div id="centerPanel" class="hidden absolute top-6 right-6 bg-white/95 backdrop-blur shadow-2xl p-6 rounded-lg z-[1000] w-80 border border-slate-200">
+                    <h3 class="font-bold text-slate-800 text-xs uppercase tracking-widest mb-6 border-b border-slate-100 pb-3">
+                        中心拠点設定 (V, s₀)
+                    </h3>
+                    <div class="space-y-6">
+                        <div>
+                            <div class="flex justify-between items-center text-[11px] mb-2 font-bold text-slate-500 uppercase tracking-wider">
+                                <label>V: 来訪者数</label>
+                                <input type="number" id="numV" value="100000" min="0" max="10000000" class="w-24 p-1 border-b border-slate-200 text-right focus:border-indigo-500 outline-none transition-colors">
+                            </div>
+                            <input type="range" id="rangeV" min="0" max="1000000" step="1000" value="100000" class="w-full h-1 bg-slate-100 rounded-lg">
+                        </div>
+                        <div>
+                            <div class="flex justify-between items-center text-[11px] mb-2 font-bold text-slate-500 uppercase tracking-wider">
+                                <label>s₀: 平均単価 (円)</label>
+                                <input type="number" id="numS0" value="5000" min="0" max="1000000" class="w-24 p-1 border-b border-slate-200 text-right focus:border-indigo-500 outline-none transition-colors">
+                            </div>
+                            <input type="range" id="rangeS0" min="0" max="100000" step="100" value="5000" class="w-full h-1 bg-slate-100 rounded-lg">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 px-8 py-3 bg-slate-900 text-white rounded shadow-2xl transition-all opacity-0 pointer-events-none z-[2000] text-xs uppercase tracking-widest"></div>
+
+    <script>
+        let mode = 'center';
+        // 金沢をデフォルトに設定
+        let centerData = { lat: 36.5613, lng: 136.6562, v: 100000, s0: 5000 };
+        let spots = [];
+        let map, centerMarker, spotMarkers = [], polylines = [];
+
+        function initMap() {
+            map = L.map('map').setView([centerData.lat, centerData.lng], 13);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            }).addTo(map);
+            map.on('click', onMapClick);
+            updateUI();
+        }
+
+        function onMapClick(e) {
+            if (mode === 'center') {
+                updateCenter(e.latlng.lat, e.latlng.lng);
+                showToast("中心拠点を配置しました");
+            } else {
+                addSpot(e.latlng.lat, e.latlng.lng);
+                showToast("波及地点を追加しました");
+            }
+        }
+
+        document.getElementById('modeCenter').onclick = () => setMode('center');
+        document.getElementById('modeSpot').onclick = () => setMode('spot');
+
+        function setMode(m) {
+            mode = m;
+            document.getElementById('modeCenter').className = m === 'center' ? 
+                'py-4 rounded border-2 text-slate-600 transition-all flex flex-col items-center gap-2 mode-active shadow-sm' : 
+                'py-4 rounded border-2 border-slate-100 text-slate-400 transition-all flex flex-col items-center gap-2 hover:bg-slate-50';
+            document.getElementById('modeSpot').className = m === 'spot' ? 
+                'py-4 rounded border-2 text-slate-600 transition-all flex flex-col items-center gap-2 mode-active shadow-sm' : 
+                'py-4 rounded border-2 border-slate-100 text-slate-400 transition-all flex flex-col items-center gap-2 hover:bg-slate-50';
+
+            const panel = document.getElementById('centerPanel');
+            if (m === 'spot') {
+                panel.classList.add('hidden');
+            } else if (m === 'center' && centerMarker) {
+                panel.classList.remove('hidden');
+            }
+        }
+
+        function updateCenter(lat, lng) {
+            centerData.lat = lat;
+            centerData.lng = lng;
+            if (centerMarker) map.removeLayer(centerMarker);
+            
+            const grayIcon = new L.Icon({
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-grey.png',
+                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+            });
+
+            centerMarker = L.marker([lat, lng], { icon: grayIcon, draggable: true }).addTo(map);
+            centerMarker.on('dragend', (e) => {
+                centerData.lat = e.target.getLatLng().lat;
+                centerData.lng = e.target.getLatLng().lng;
+                renderConnections();
+            });
+            
+            if (mode === 'center') {
+                document.getElementById('centerPanel').classList.remove('hidden');
+            }
+            renderConnections();
+            calculate();
+        }
+
+        function addSpot(lat, lng, data = null) {
+            const spot = data || {
+                id: Date.now() + Math.random(),
+                lat: lat,
+                lng: lng,
+                label: `地点 ${spots.length + 1}`,
+                t: 10,
+                s: 5000
+            };
+            spots.push(spot);
+            renderSpotMarker(spot);
+            renderConnections();
+            calculate();
+            updateSpotList();
+        }
+
+        function renderSpotMarker(spot) {
+            const indigoIcon = new L.Icon({
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-violet.png',
+                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+            });
+            const marker = L.marker([spot.lat, spot.lng], { icon: indigoIcon, draggable: true }).addTo(map);
+            
+            // ポップアップ内容の更新用クロージャ
+            const getPopupHTML = (s) => `
+                <div class="p-3 space-y-3 min-w-[200px]">
+                    <input type="text" value="${s.label}" onchange="updateSpotData(${s.id}, 'label', this.value)" 
+                           class="font-bold border-b border-slate-100 w-full outline-none mb-1 text-[11px] uppercase tracking-wider">
+                    <div class="space-y-1">
+                        <label class="text-slate-400 font-bold text-[10px] uppercase block">tᵢ: 相互利用率 (${s.t}%)</label>
+                        <input type="range" value="${s.t}" min="0" max="100" step="0.1" class="w-full h-1" oninput="updateSpotData(${s.id}, 't', this.value)">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-slate-400 font-bold text-[10px] uppercase block">sᵢ: 平均単価 (¥${new Intl.NumberFormat('ja-JP').format(s.s)})</label>
+                        <input type="range" value="${s.s}" min="0" max="1000000" step="500" class="w-full h-1" oninput="updateSpotData(${s.id}, 's', this.value)">
+                    </div>
+                    <button onclick="removeSpot(${s.id})" class="text-[9px] font-bold text-red-400 hover:text-red-600 transition-colors block w-full text-right uppercase tracking-wider">削除</button>
+                </div>
+            `;
+
+            marker.bindPopup(getPopupHTML(spot), { className: 'custom-popup' });
+            
+            marker.on('dragend', (e) => {
+                spot.lat = e.target.getLatLng().lat;
+                spot.lng = e.target.getLatLng().lng;
+                renderConnections();
+                updateSpotList();
+            });
+            spotMarkers.push({ id: spot.id, marker: marker });
+        }
+
+        window.updateSpotData = (id, key, val) => {
+            const spot = spots.find(s => s.id === id);
+            if (spot) {
+                spot[key] = key === 'label' ? val : parseFloat(val);
+                calculate();
+                updateSpotList();
+                
+                // 地図上のポップアップを同期更新
+                const markerObj = spotMarkers.find(m => m.id === id);
+                if (markerObj) {
+                    const popup = markerObj.marker.getPopup();
+                    if (popup && popup.isOpen()) {
+                        const el = popup.getElement();
+                        // TypeError回避のため querySelectorAll を使用
+                        const labels = el.querySelectorAll('label');
+                        const ranges = el.querySelectorAll('input[type="range"]');
+                        
+                        if (key === 't' && labels[0]) {
+                            labels[0].innerText = `tᵢ: 相互利用率 (${val}%)`;
+                            if (ranges[0]) ranges[0].value = val;
+                        }
+                        if (key === 's' && labels[1]) {
+                            labels[1].innerText = `sᵢ: 平均単価 (¥${new Intl.NumberFormat('ja-JP').format(val)})`;
+                            if (ranges[1]) ranges[1].value = val;
+                        }
+                        if (key === 'label') {
+                            const titleInput = el.querySelector('input[type="text"]');
+                            if (titleInput) titleInput.value = val;
+                        }
+                    }
+                }
+            }
+        };
+
+        window.removeSpot = (id) => {
+            spots = spots.filter(s => s.id !== id);
+            const mObj = spotMarkers.find(m => m.id === id);
+            if (mObj) map.removeLayer(mObj.marker);
+            spotMarkers = spotMarkers.filter(m => m.id !== id);
+            renderConnections();
+            calculate();
+            updateSpotList();
+        };
+
+        function renderConnections() {
+            polylines.forEach(p => map.removeLayer(p));
+            polylines = [];
+            if (!centerMarker) return;
+            const centerPos = centerMarker.getLatLng();
+            spots.forEach(spot => {
+                const line = L.polyline([centerPos, [spot.lat, spot.lng]], {
+                    color: '#94a3b8', weight: 1, opacity: 0.5, dashArray: '4, 4'
+                }).addTo(map);
+                polylines.push(line);
+            });
+        }
+
+        function calculate() {
+            const V = centerData.v;
+            const s0 = centerData.s0;
+            let sigmaTS = 0;
+            spots.forEach(s => {
+                sigmaTS += (s.t / 100) * s.s;
+            });
+            const E = V * (s0 + sigmaTS);
+            const fmt = new Intl.NumberFormat('ja-JP');
+            document.getElementById('statE').innerText = `¥${fmt.format(Math.round(E))}`;
+            document.getElementById('statV').innerText = fmt.format(V);
+            document.getElementById('statS0').innerText = `¥${fmt.format(s0)}`;
+            document.getElementById('statN').innerText = spots.length;
+        }
+
+        function updateSpotList() {
+            const list = document.getElementById('spotList');
+            const fmt = new Intl.NumberFormat('ja-JP');
+            list.innerHTML = '';
+            
+            spots.forEach(s => {
+                const perPersonImpact = (s.t / 100) * s.s;
+                const totalSpotImpact = centerData.v * perPersonImpact;
+
+                const card = document.createElement('div');
+                card.className = 'bg-white p-6 rounded border border-slate-200 shadow-sm transition-all hover:border-indigo-200';
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-4">
+                        <input type="text" value="${s.label}" onchange="updateSpotData(${s.id}, 'label', this.value)" 
+                               class="font-bold text-slate-800 text-[11px] uppercase tracking-wider bg-transparent border-b border-transparent focus:border-indigo-500 outline-none w-2/3">
+                        <div class="text-[9px] font-bold px-2 py-0.5 bg-slate-50 text-slate-400 rounded-sm border border-slate-100 tracking-tighter uppercase">Impact Node</div>
+                    </div>
+                    
+                    <div class="space-y-4 mb-6">
+                        <div class="space-y-1">
+                            <div class="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                <span>相互利用率</span>
+                                <div class="flex items-center gap-2">
+                                    <input type="number" value="${s.t}" step="0.1" onchange="updateSpotData(${s.id}, 't', this.value)" 
+                                           class="w-12 bg-slate-50 text-right p-0.5 border border-slate-100 rounded focus:outline-none">
+                                    <span>%</span>
+                                </div>
+                            </div>
+                            <input type="range" value="${s.t}" min="0" max="100" step="0.1" class="w-full h-1 cursor-pointer" oninput="updateSpotData(${s.id}, 't', this.value)">
+                        </div>
+                        
+                        <div class="space-y-1">
+                            <div class="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                <span>平均単価</span>
+                                <div class="flex items-center gap-1">
+                                    <span>¥</span>
+                                    <input type="number" value="${s.s}" step="100" onchange="updateSpotData(${s.id}, 's', this.value)" 
+                                           class="w-20 bg-slate-50 text-right p-0.5 border border-slate-100 rounded focus:outline-none">
+                                </div>
+                            </div>
+                            <input type="range" value="${s.s}" min="0" max="1000000" step="500" class="w-full h-1 cursor-pointer" oninput="updateSpotData(${s.id}, 's', this.value)">
+                        </div>
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-50 flex justify-between items-end">
+                        <span class="text-[9px] text-slate-300 font-bold uppercase tracking-widest">推定地点波及額</span>
+                        <span class="text-xl font-light text-slate-800 tracking-tight">¥${fmt.format(Math.round(totalSpotImpact))}</span>
+                    </div>
+                `;
+                
+                // カードクリックで地図移動（入力フィールド以外）
+                card.onclick = (e) => {
+                    if (e.target.tagName !== 'INPUT') {
+                        const m = spotMarkers.find(sm => sm.id === s.id).marker;
+                        map.panTo(m.getLatLng());
+                        m.openPopup();
+                    }
+                };
+                
+                list.appendChild(card);
+            });
+        }
+
+        function setupCenterSync(rangeId, numId, dataKey) {
+            const range = document.getElementById(rangeId);
+            const num = document.getElementById(numId);
+            range.addEventListener('input', (e) => {
+                const val = parseInt(e.target.value);
+                num.value = val;
+                centerData[dataKey] = val;
+                calculate();
+                updateSpotList();
+            });
+            num.addEventListener('input', (e) => {
+                const val = parseInt(e.target.value) || 0;
+                range.value = val;
+                centerData[dataKey] = val;
+                calculate();
+                updateSpotList();
+            });
+        }
+
+        document.getElementById('exportBtn').onclick = () => {
+            const data = { center: centerData, spots: spots };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `tourism_sim_${Date.now()}.json`;
+            a.click();
+            showToast("JSON EXPORT SUCCESSFUL");
+        };
+
+        document.getElementById('importFile').onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    if (centerMarker) map.removeLayer(centerMarker);
+                    spotMarkers.forEach(m => map.removeLayer(m.marker));
+                    spotMarkers = []; spots = [];
+                    polylines.forEach(p => map.removeLayer(p)); polylines = [];
+                    
+                    centerData = data.center;
+                    document.getElementById('rangeV').value = centerData.v;
+                    document.getElementById('numV').value = centerData.v;
+                    document.getElementById('rangeS0').value = centerData.s0;
+                    document.getElementById('numS0').value = centerData.s0;
+                    
+                    updateCenter(centerData.lat, centerData.lng);
+                    if (data.spots) data.spots.forEach(s => addSpot(s.lat, s.lng, s));
+                    
+                    map.setView([centerData.lat, centerData.lng], 13);
+                    setMode('center');
+                    calculate();
+                    updateSpotList();
+                    showToast("DATA IMPORT SUCCESSFUL");
+                } catch (err) {
+                    showToast("IMPORT ERROR");
+                }
+            };
+            reader.readAsText(file);
+        };
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.style.opacity = '1';
+            setTimeout(() => t.style.opacity = '0', 3000);
+        }
+
+        function updateUI() {
+            setMode('center');
+            setupCenterSync('rangeV', 'numV', 'v');
+            setupCenterSync('rangeS0', 'numS0', 's0');
+            calculate();
+        }
+
+        window.onload = initMap;
+    </script>
+</body>
+</html>
