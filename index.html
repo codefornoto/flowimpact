@@ -10,8 +10,8 @@
     <style>
         #map { height: 600px; width: 100%; border-radius: 8px; z-index: 1; }
         .custom-popup .leaflet-popup-content-wrapper { border-radius: 4px; padding: 4px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
-        input[type="range"] { accent-color: #4f46e5; }
-        .mode-active { border-color: #4f46e5; background-color: #f5f3ff; color: #4f46e5; }
+        input[type="range"] { accent-color: #64748b; }
+        .mode-active { border-color: #64748b; background-color: #f8fafc; color: #334155; }
         input::-webkit-outer-spin-button,
         input::-webkit-inner-spin-button {
             -webkit-appearance: none;
@@ -21,34 +21,56 @@
         #spotList::-webkit-scrollbar { width: 4px; }
         #spotList::-webkit-scrollbar-track { background: #f1f1f1; }
         #spotList::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        
+        .modal { transition: opacity 0.25s ease; }
+        body.modal-active { overflow: hidden; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen pb-12">
     <div class="max-w-7xl mx-auto p-4 md:p-8">
         <!-- Header -->
         <header class="text-center mb-10">
-            <h1 class="text-3xl font-light tracking-tight text-slate-900 mb-2 uppercase">フロー型観光経済波及効果算出シミュレーター</h1>
-            <p class="text-sm text-slate-500 font-serif italic mb-8 tracking-widest">E = V × (s₀ + Σ(tᵢ × sᵢ))</p>
+            <h1 class="text-3xl font-light tracking-tight text-slate-900 mb-2 uppercase text-center">フロー型観光経済波及効果算出シミュレーター</h1>
+            <p class="text-sm text-slate-500 font-serif italic mb-2 tracking-widest text-center">E = V × (s₀ + Σ(tᵢ × sᵢ))</p>
             
-            <!-- Hero Stat: E -->
-            <div class="max-w-2xl mx-auto bg-white p-8 rounded-lg shadow-sm border border-slate-200 mb-8">
-                <span class="text-xs font-semibold text-slate-400 uppercase tracking-[0.2em] block mb-2">推定 経済波及効果 (E)</span>
-                <span id="statE" class="text-5xl md:text-6xl font-extralight text-slate-900 tracking-tighter">¥0</span>
+            <button id="openTutorial" class="mb-8 text-[10px] font-bold uppercase tracking-[0.2em] px-4 py-2 border border-slate-200 rounded hover:bg-slate-100 transition-colors text-slate-500">
+                使い方を表示
+            </button>
+            
+            <!-- Hero Stat: E Comparison -->
+            <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div class="bg-white p-8 rounded-lg shadow-sm border border-slate-200">
+                    <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.2em] block mb-2">現在の経済波及効果 (E)</span>
+                    <span id="statE" class="text-4xl font-extralight text-slate-900 tracking-tighter">¥0</span>
+                </div>
+                <div class="bg-slate-800 p-8 rounded-lg shadow-xl border border-slate-700 text-white relative overflow-hidden">
+                    <div class="relative z-10">
+                        <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.2em] block mb-2">目標達成時の波及効果 (E')</span>
+                        <span id="statETarget" class="text-4xl font-extralight tracking-tighter block mb-2">¥0</span>
+                        <span id="statEDiff" class="text-sm font-bold text-slate-300">+¥0 (伸びしろ)</span>
+                    </div>
+                </div>
             </div>
 
             <!-- Sub Stats -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
                 <div class="bg-white p-5 rounded border border-slate-200 shadow-sm">
                     <span class="text-[10px] text-slate-400 block font-bold uppercase tracking-wider mb-1">来訪者数 (V)</span>
-                    <span id="statV" class="text-2xl font-light text-slate-800 tracking-tight">0</span>
+                    <div class="flex flex-col">
+                        <span id="statV" class="text-xl font-light text-slate-800 tracking-tight">0</span>
+                        <span id="statVTarget" class="text-[10px] text-slate-500 font-bold">目標: 0</span>
+                    </div>
                 </div>
                 <div class="bg-white p-5 rounded border border-slate-200 shadow-sm">
                     <span class="text-[10px] text-slate-400 block font-bold uppercase tracking-wider mb-1">中心拠点平均単価 (s₀)</span>
-                    <span id="statS0" class="text-2xl font-light text-slate-800 tracking-tight">¥0</span>
+                    <div class="flex flex-col">
+                        <span id="statS0" class="text-xl font-light text-slate-800 tracking-tight">¥0</span>
+                        <span id="statS0Target" class="text-[10px] text-slate-500 font-bold">目標: ¥0</span>
+                    </div>
                 </div>
                 <div class="bg-white p-5 rounded border border-slate-200 shadow-sm">
                     <span class="text-[10px] text-slate-400 block font-bold uppercase tracking-wider mb-1">波及地点数 (n)</span>
-                    <span id="statN" class="text-2xl font-light text-slate-800 tracking-tight">0</span>
+                    <span id="statN" class="text-xl font-light text-slate-800 tracking-tight mt-1 block">0</span>
                 </div>
             </div>
         </header>
@@ -65,7 +87,7 @@
                             <div class="font-bold text-[11px] uppercase tracking-wider">中心拠点設定</div>
                         </button>
                         <button id="modeSpot" class="py-4 rounded border-2 border-slate-100 text-slate-600 transition-all flex flex-col items-center gap-2 hover:bg-slate-50">
-                            <span class="w-3 h-3 rounded-full bg-indigo-500 shadow-sm"></span>
+                            <span class="w-3 h-3 rounded-full bg-slate-500 shadow-sm"></span>
                             <div class="font-bold text-[11px] uppercase tracking-wider">波及地点追加</div>
                         </button>
                     </div>
@@ -85,8 +107,8 @@
 
                 <!-- Spot List -->
                 <div class="space-y-4">
-                    <h2 class="text-xs font-bold px-1 text-slate-400 uppercase tracking-widest">波及地点リスト (Σ tᵢ × sᵢ)</h2>
-                    <div id="spotList" class="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+                    <h2 class="text-xs font-bold px-1 text-slate-400 uppercase tracking-widest">波及地点リスト & 目標値</h2>
+                    <div id="spotList" class="space-y-4 max-h-[800px] overflow-y-auto pr-2">
                         <!-- 地点カードが動的に挿入されます -->
                     </div>
                 </div>
@@ -101,22 +123,66 @@
                     <h3 class="font-bold text-slate-800 text-xs uppercase tracking-widest mb-6 border-b border-slate-100 pb-3">
                         中心拠点設定 (V, s₀)
                     </h3>
-                    <div class="space-y-6">
-                        <div>
-                            <div class="flex justify-between items-center text-[11px] mb-2 font-bold text-slate-500 uppercase tracking-wider">
-                                <label>V: 来訪者数</label>
-                                <input type="number" id="numV" value="100000" min="0" max="10000000" class="w-24 p-1 border-b border-slate-200 text-right focus:border-indigo-500 outline-none transition-colors">
+                    <div class="space-y-8">
+                        <!-- Current V -->
+                        <div class="p-3 bg-slate-50 rounded border border-slate-100">
+                            <div class="flex justify-between items-center text-[10px] mb-2 font-bold text-slate-400 uppercase tracking-wider">
+                                <label>現状 V: 来訪者数</label>
+                                <input type="number" id="numV" value="100000" class="w-20 bg-transparent border-b border-slate-300 text-right outline-none">
                             </div>
-                            <input type="range" id="rangeV" min="0" max="1000000" step="1000" value="100000" class="w-full h-1 bg-slate-100 rounded-lg">
+                            <input type="range" id="rangeV" min="0" max="1000000" step="1000" value="100000" class="w-full h-1 bg-slate-200 rounded-lg">
                         </div>
-                        <div>
-                            <div class="flex justify-between items-center text-[11px] mb-2 font-bold text-slate-500 uppercase tracking-wider">
-                                <label>s₀: 平均単価 (円)</label>
-                                <input type="number" id="numS0" value="5000" min="0" max="1000000" class="w-24 p-1 border-b border-slate-200 text-right focus:border-indigo-500 outline-none transition-colors">
+                        <!-- Target V -->
+                        <div class="p-3 bg-slate-100/50 rounded border border-slate-200">
+                            <div class="flex justify-between items-center text-[10px] mb-2 font-bold text-slate-500 uppercase tracking-wider">
+                                <label>目標 V': 来訪者数</label>
+                                <input type="number" id="numVTarget" value="100000" class="w-20 bg-transparent border-b border-slate-300 text-right outline-none text-slate-700">
                             </div>
-                            <input type="range" id="rangeS0" min="0" max="100000" step="100" value="5000" class="w-full h-1 bg-slate-100 rounded-lg">
+                            <input type="range" id="rangeVTarget" min="0" max="1000000" step="1000" value="100000" class="w-full h-1 bg-slate-300 rounded-lg">
+                        </div>
+                        
+                        <hr class="border-slate-100">
+
+                        <!-- Current s0 -->
+                        <div class="p-3 bg-slate-50 rounded border border-slate-100">
+                            <div class="flex justify-between items-center text-[10px] mb-2 font-bold text-slate-400 uppercase tracking-wider">
+                                <label>現状 s₀: 平均単価</label>
+                                <input type="number" id="numS0" value="5000" class="w-20 bg-transparent border-b border-slate-300 text-right outline-none">
+                            </div>
+                            <input type="range" id="rangeS0" min="0" max="100000" step="100" value="5000" class="w-full h-1 bg-slate-200 rounded-lg">
+                        </div>
+                        <!-- Target s0 -->
+                        <div class="p-3 bg-slate-100/50 rounded border border-slate-200">
+                            <div class="flex justify-between items-center text-[10px] mb-2 font-bold text-slate-500 uppercase tracking-wider">
+                                <label>目標 s₀': 平均単価</label>
+                                <input type="number" id="numS0Target" value="5000" class="w-20 bg-transparent border-b border-slate-300 text-right outline-none text-slate-700">
+                            </div>
+                            <input type="range" id="rangeS0Target" min="0" max="100000" step="100" value="5000" class="w-full h-1 bg-slate-300 rounded-lg">
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tutorial Modal -->
+    <div id="tutorialModal" class="modal opacity-0 pointer-events-none fixed w-full h-full top-0 left-0 flex items-center justify-center z-[3000]">
+        <div class="modal-overlay absolute w-full h-full bg-slate-900 opacity-50"></div>
+        <div class="modal-container bg-white w-11/12 md:max-w-2xl mx-auto rounded-lg shadow-2xl z-50 overflow-y-auto max-h-[80vh]">
+            <div class="modal-content py-8 text-left px-10">
+                <div class="flex justify-between items-center pb-6 border-b border-slate-100">
+                    <p class="text-xs font-bold uppercase tracking-widest text-slate-400 text-left">使い方ガイド</p>
+                    <div id="closeTutorial" class="modal-close cursor-pointer z-50">
+                        <svg class="fill-current text-slate-400 hover:text-slate-900" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18">
+                            <path d="M14.53 4.53l-1.06-1.06L9 7.94 4.53 3.47 3.47 4.53 7.94 9l-4.47 4.47 1.06 1.06L9 10.06l4.47 4.47 1.06-1.06L10.06 9z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div id="tutorialBody" class="mt-8 text-slate-600 text-sm leading-relaxed whitespace-pre-wrap text-left">
+                    <!-- Tutorial text will be loaded here -->
+                </div>
+                <div class="flex justify-end pt-8">
+                    <button class="modal-close px-6 py-2 bg-slate-900 rounded text-white text-[10px] font-bold uppercase tracking-widest hover:bg-black">閉じる</button>
                 </div>
             </div>
         </div>
@@ -126,19 +192,74 @@
     <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 px-8 py-3 bg-slate-900 text-white rounded shadow-2xl transition-all opacity-0 pointer-events-none z-[2000] text-xs uppercase tracking-widest"></div>
 
     <script>
+        // Constants & State
+        const tutorialText = `【フロー型観光経済波及効果算出シミュレーターの使い方】
+
+1. 中心拠点の設定
+   「操作モード」から「中心拠点設定」を選択し、地図上の拠点をクリックしてください。
+   グレーのマーカーが配置され、右上に設定パネルが表示されます。
+   ここでは現状の「来訪者数(V)」と「平均単価(s0)」、そして目標とする数値を入力できます。
+
+2. 波及地点の追加
+   「波及地点追加」を選択し、周辺の観光スポットや商業施設をクリックしてピンを刺します。
+   紫のマーカーが追加され、拠点と点線で結ばれます。
+
+3. 各地点のパラメータ設定
+   左側のリストにカードが表示されます。
+   ・相互利用率(t)：拠点を訪れた人の何％がこの地点を訪れるか
+   ・平均単価(s)：その地点での平均消費額
+   それぞれ「現状」と「目標」の数値を入力してください。
+
+4. シミュレーションの比較
+   画面上部には「現状の波及効果(E)」と「目標達成時の波及効果(E')」が表示されます。
+   どの指標（人数、単価、回遊率）をどのくらい改善すれば、全体の経済効果がどの程度伸びるのか（伸びしろ）を瞬時に可視化します。
+
+5. データの管理
+   「JSON出力」で現在のシミュレーション内容を保存でき、「読み込み」から再開可能です。`;
+
         let mode = 'center';
-        // 金沢をデフォルトに設定
-        let centerData = { lat: 36.5613, lng: 136.6562, v: 100000, s0: 5000 };
+        // 目標値を現状と同じ初期値に設定
+        let centerData = { 
+            lat: 36.5613, lng: 136.6562, 
+            v: 100000, targetV: 100000, 
+            s0: 5000, targetS0: 5000 
+        };
         let spots = [];
         let map, centerMarker, spotMarkers = [], polylines = [];
 
+        // Initialize Map
         function initMap() {
             map = L.map('map').setView([centerData.lat, centerData.lng], 13);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
             }).addTo(map);
             map.on('click', onMapClick);
+            
+            setupTutorial();
             updateUI();
+        }
+
+        function setupTutorial() {
+            const modal = document.getElementById('tutorialModal');
+            const openBtn = document.getElementById('openTutorial');
+            const closeElements = document.querySelectorAll('.modal-close, .modal-overlay');
+            const body = document.getElementById('tutorialBody');
+
+            body.textContent = tutorialText;
+
+            openBtn.onclick = () => {
+                modal.classList.remove('pointer-events-none');
+                modal.classList.add('opacity-100');
+                document.body.classList.add('modal-active');
+            };
+
+            closeElements.forEach(el => {
+                el.onclick = () => {
+                    modal.classList.add('pointer-events-none');
+                    modal.classList.remove('opacity-100');
+                    document.body.classList.remove('modal-active');
+                };
+            });
         }
 
         function onMapClick(e) {
@@ -197,13 +318,14 @@
         }
 
         function addSpot(lat, lng, data = null) {
+            // 目標値を現状と同じ初期値に設定
             const spot = data || {
                 id: Date.now() + Math.random(),
                 lat: lat,
                 lng: lng,
                 label: `地点 ${spots.length + 1}`,
-                t: 10,
-                s: 5000
+                t: 10, targetT: 10,
+                s: 5000, targetS: 5000
             };
             spots.push(spot);
             renderSpotMarker(spot);
@@ -220,20 +342,12 @@
             });
             const marker = L.marker([spot.lat, spot.lng], { icon: indigoIcon, draggable: true }).addTo(map);
             
-            // ポップアップ内容の更新用クロージャ
             const getPopupHTML = (s) => `
-                <div class="p-3 space-y-3 min-w-[200px]">
-                    <input type="text" value="${s.label}" onchange="updateSpotData(${s.id}, 'label', this.value)" 
-                           class="font-bold border-b border-slate-100 w-full outline-none mb-1 text-[11px] uppercase tracking-wider">
-                    <div class="space-y-1">
-                        <label class="text-slate-400 font-bold text-[10px] uppercase block">tᵢ: 相互利用率 (${s.t}%)</label>
-                        <input type="range" value="${s.t}" min="0" max="100" step="0.1" class="w-full h-1" oninput="updateSpotData(${s.id}, 't', this.value)">
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-slate-400 font-bold text-[10px] uppercase block">sᵢ: 平均単価 (¥${new Intl.NumberFormat('ja-JP').format(s.s)})</label>
-                        <input type="range" value="${s.s}" min="0" max="1000000" step="500" class="w-full h-1" oninput="updateSpotData(${s.id}, 's', this.value)">
-                    </div>
-                    <button onclick="removeSpot(${s.id})" class="text-[9px] font-bold text-red-400 hover:text-red-600 transition-colors block w-full text-right uppercase tracking-wider">削除</button>
+                <div class="p-3 space-y-2 min-w-[200px]">
+                    <div class="font-bold text-[11px] uppercase tracking-wider mb-2 text-left">${s.label}</div>
+                    <div class="text-[9px] text-slate-400 font-bold uppercase text-left">現状: ${s.t}% / ¥${new Intl.NumberFormat('ja-JP').format(s.s)}</div>
+                    <div class="text-[9px] text-slate-500 font-bold uppercase text-left">目標: ${s.targetT}% / ¥${new Intl.NumberFormat('ja-JP').format(s.targetS)}</div>
+                    <button onclick="removeSpot(${s.id})" class="text-[9px] font-bold text-red-400 hover:text-red-600 transition-colors block w-full text-right uppercase mt-2">削除</button>
                 </div>
             `;
 
@@ -255,28 +369,18 @@
                 calculate();
                 updateSpotList();
                 
-                // 地図上のポップアップを同期更新
                 const markerObj = spotMarkers.find(m => m.id === id);
                 if (markerObj) {
                     const popup = markerObj.marker.getPopup();
                     if (popup && popup.isOpen()) {
-                        const el = popup.getElement();
-                        // TypeError回避のため querySelectorAll を使用
-                        const labels = el.querySelectorAll('label');
-                        const ranges = el.querySelectorAll('input[type="range"]');
-                        
-                        if (key === 't' && labels[0]) {
-                            labels[0].innerText = `tᵢ: 相互利用率 (${val}%)`;
-                            if (ranges[0]) ranges[0].value = val;
-                        }
-                        if (key === 's' && labels[1]) {
-                            labels[1].innerText = `sᵢ: 平均単価 (¥${new Intl.NumberFormat('ja-JP').format(val)})`;
-                            if (ranges[1]) ranges[1].value = val;
-                        }
-                        if (key === 'label') {
-                            const titleInput = el.querySelector('input[type="text"]');
-                            if (titleInput) titleInput.value = val;
-                        }
+                        markerObj.marker.setPopupContent(`
+                            <div class="p-3 space-y-2 min-w-[200px]">
+                                <div class="font-bold text-[11px] uppercase tracking-wider mb-2 text-left">${spot.label}</div>
+                                <div class="text-[9px] text-slate-400 font-bold uppercase text-left">現状: ${spot.t}% / ¥${new Intl.NumberFormat('ja-JP').format(spot.s)}</div>
+                                <div class="text-[9px] text-slate-500 font-bold uppercase text-left">目標: ${spot.targetT}% / ¥${new Intl.NumberFormat('ja-JP').format(spot.targetS)}</div>
+                                <button onclick="removeSpot(${spot.id})" class="text-[9px] font-bold text-red-400 hover:text-red-600 transition-colors block w-full text-right uppercase mt-2">削除</button>
+                            </div>
+                        `);
                     }
                 }
             }
@@ -307,16 +411,31 @@
 
         function calculate() {
             const V = centerData.v;
+            const targetV = centerData.targetV;
             const s0 = centerData.s0;
+            const targetS0 = centerData.targetS0;
+
             let sigmaTS = 0;
+            let sigmaTS_Target = 0;
+            
             spots.forEach(s => {
                 sigmaTS += (s.t / 100) * s.s;
+                sigmaTS_Target += (s.targetT / 100) * s.targetS;
             });
+
             const E = V * (s0 + sigmaTS);
+            const ET = targetV * (targetS0 + sigmaTS_Target);
+            const EDiff = ET - E;
+
             const fmt = new Intl.NumberFormat('ja-JP');
             document.getElementById('statE').innerText = `¥${fmt.format(Math.round(E))}`;
+            document.getElementById('statETarget').innerText = `¥${fmt.format(Math.round(ET))}`;
+            document.getElementById('statEDiff').innerText = `${EDiff >= 0 ? '+' : ''}¥${fmt.format(Math.round(EDiff))} (伸びしろ)`;
+            
             document.getElementById('statV').innerText = fmt.format(V);
+            document.getElementById('statVTarget').innerText = `目標: ${fmt.format(targetV)}`;
             document.getElementById('statS0').innerText = `¥${fmt.format(s0)}`;
+            document.getElementById('statS0Target').innerText = `目標: ¥${fmt.format(targetS0)}`;
             document.getElementById('statN').innerText = spots.length;
         }
 
@@ -326,56 +445,82 @@
             list.innerHTML = '';
             
             spots.forEach(s => {
-                const perPersonImpact = (s.t / 100) * s.s;
-                const totalSpotImpact = centerData.v * perPersonImpact;
+                const curImpact = centerData.v * (s.t / 100) * s.s;
+                const targetImpact = centerData.targetV * (s.targetT / 100) * s.targetS;
+                const impactDiff = targetImpact - curImpact;
 
                 const card = document.createElement('div');
-                card.className = 'bg-white p-6 rounded border border-slate-200 shadow-sm transition-all hover:border-indigo-200';
+                card.className = 'bg-white p-6 rounded border border-slate-200 shadow-sm transition-all hover:border-slate-300';
                 card.innerHTML = `
                     <div class="flex justify-between items-start mb-4">
                         <input type="text" value="${s.label}" onchange="updateSpotData(${s.id}, 'label', this.value)" 
-                               class="font-bold text-slate-800 text-[11px] uppercase tracking-wider bg-transparent border-b border-transparent focus:border-indigo-500 outline-none w-2/3">
-                        <div class="text-[9px] font-bold px-2 py-0.5 bg-slate-50 text-slate-400 rounded-sm border border-slate-100 tracking-tighter uppercase">Impact Node</div>
+                               class="font-bold text-slate-800 text-[11px] uppercase tracking-wider bg-transparent border-b border-transparent focus:border-slate-400 outline-none w-2/3">
                     </div>
                     
-                    <div class="space-y-4 mb-6">
-                        <div class="space-y-1">
-                            <div class="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                <span>相互利用率</span>
+                    <div class="space-y-6">
+                        <!-- ti: 相互利用率 -->
+                        <div class="grid grid-cols-2 gap-4 text-left">
+                            <div class="space-y-1">
+                                <label class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block text-left">現状 tᵢ (%)</label>
                                 <div class="flex items-center gap-2">
                                     <input type="number" value="${s.t}" step="0.1" onchange="updateSpotData(${s.id}, 't', this.value)" 
-                                           class="w-12 bg-slate-50 text-right p-0.5 border border-slate-100 rounded focus:outline-none">
-                                    <span>%</span>
+                                           class="w-full bg-slate-50 text-right p-1 border border-slate-100 rounded text-xs">
                                 </div>
+                                <input type="range" value="${s.t}" min="0" max="100" step="0.1" class="w-full h-1" oninput="updateSpotData(${s.id}, 't', this.value)">
                             </div>
-                            <input type="range" value="${s.t}" min="0" max="100" step="0.1" class="w-full h-1 cursor-pointer" oninput="updateSpotData(${s.id}, 't', this.value)">
+                            <div class="space-y-1">
+                                <label class="text-[9px] font-bold text-slate-500 uppercase tracking-widest block text-left">目標 tᵢ' (%)</label>
+                                <div class="flex items-center gap-2">
+                                    <input type="number" value="${s.targetT}" step="0.1" onchange="updateSpotData(${s.id}, 'targetT', this.value)" 
+                                           class="w-full bg-slate-100/50 text-right p-1 border border-slate-200 rounded text-xs text-slate-700">
+                                </div>
+                                <input type="range" value="${s.targetT}" min="0" max="100" step="0.1" class="w-full h-1" oninput="updateSpotData(${s.id}, 'targetT', this.value)">
+                            </div>
                         </div>
-                        
-                        <div class="space-y-1">
-                            <div class="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                <span>平均単価</span>
-                                <div class="flex items-center gap-1">
-                                    <span>¥</span>
+
+                        <!-- si: 平均単価 -->
+                        <div class="grid grid-cols-2 gap-4 text-left">
+                            <div class="space-y-1">
+                                <label class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block text-left">現状 sᵢ (¥)</label>
+                                <div class="flex items-center gap-2">
                                     <input type="number" value="${s.s}" step="100" onchange="updateSpotData(${s.id}, 's', this.value)" 
-                                           class="w-20 bg-slate-50 text-right p-0.5 border border-slate-100 rounded focus:outline-none">
+                                           class="w-full bg-slate-50 text-right p-1 border border-slate-100 rounded text-xs">
                                 </div>
+                                <input type="range" value="${s.s}" min="0" max="1000000" step="500" class="w-full h-1" oninput="updateSpotData(${s.id}, 's', this.value)">
                             </div>
-                            <input type="range" value="${s.s}" min="0" max="1000000" step="500" class="w-full h-1 cursor-pointer" oninput="updateSpotData(${s.id}, 's', this.value)">
+                            <div class="space-y-1">
+                                <label class="text-[9px] font-bold text-slate-500 uppercase tracking-widest block text-left">目標 sᵢ' (¥)</label>
+                                <div class="flex items-center gap-2">
+                                    <input type="number" value="${s.targetS}" step="100" onchange="updateSpotData(${s.id}, 'targetS', this.value)" 
+                                           class="w-full bg-slate-100/50 text-right p-1 border border-slate-200 rounded text-xs text-slate-700">
+                                </div>
+                                <input type="range" value="${s.targetS}" min="0" max="1000000" step="500" class="w-full h-1" oninput="updateSpotData(${s.id}, 'targetS', this.value)">
+                            </div>
                         </div>
                     </div>
 
-                    <div class="pt-4 border-t border-slate-50 flex justify-between items-end">
-                        <span class="text-[9px] text-slate-300 font-bold uppercase tracking-widest">推定地点波及額</span>
-                        <span class="text-xl font-light text-slate-800 tracking-tight">¥${fmt.format(Math.round(totalSpotImpact))}</span>
+                    <div class="mt-6 pt-4 border-t border-slate-50 text-left">
+                        <div class="flex justify-between items-end mb-1">
+                            <span class="text-[9px] text-slate-300 font-bold uppercase tracking-widest">現状地点波及額</span>
+                            <span class="text-sm font-light text-slate-400">¥${fmt.format(Math.round(curImpact))}</span>
+                        </div>
+                        <div class="flex justify-between items-end">
+                            <span class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">目標達成時波及額</span>
+                            <span class="text-lg font-light text-slate-800 tracking-tight">¥${fmt.format(Math.round(targetImpact))}</span>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-[10px] font-bold text-slate-500 uppercase">${impactDiff >= 0 ? '+' : ''}¥${fmt.format(Math.round(impactDiff))}</span>
+                        </div>
                     </div>
                 `;
                 
-                // カードクリックで地図移動（入力フィールド以外）
                 card.onclick = (e) => {
                     if (e.target.tagName !== 'INPUT') {
-                        const m = spotMarkers.find(sm => sm.id === s.id).marker;
-                        map.panTo(m.getLatLng());
-                        m.openPopup();
+                        const markerObj = spotMarkers.find(sm => sm.id === s.id);
+                        if (markerObj) {
+                            map.panTo(markerObj.marker.getLatLng());
+                            markerObj.marker.openPopup();
+                        }
                     }
                 };
                 
@@ -383,32 +528,32 @@
             });
         }
 
+        // Sync for Center Panel Inputs
         function setupCenterSync(rangeId, numId, dataKey) {
             const range = document.getElementById(rangeId);
             const num = document.getElementById(numId);
-            range.addEventListener('input', (e) => {
-                const val = parseInt(e.target.value);
+            
+            const handler = (e) => {
+                const val = parseInt(e.target.value) || 0;
+                range.value = val;
                 num.value = val;
                 centerData[dataKey] = val;
                 calculate();
                 updateSpotList();
-            });
-            num.addEventListener('input', (e) => {
-                const val = parseInt(e.target.value) || 0;
-                range.value = val;
-                centerData[dataKey] = val;
-                calculate();
-                updateSpotList();
-            });
+            };
+
+            range.addEventListener('input', handler);
+            num.addEventListener('input', handler);
         }
 
+        // JSON Export/Import
         document.getElementById('exportBtn').onclick = () => {
             const data = { center: centerData, spots: spots };
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `tourism_sim_${Date.now()}.json`;
+            a.download = `tourism_simulation_${Date.now()}.json`;
             a.click();
             showToast("JSON EXPORT SUCCESSFUL");
         };
@@ -428,8 +573,13 @@
                     centerData = data.center;
                     document.getElementById('rangeV').value = centerData.v;
                     document.getElementById('numV').value = centerData.v;
+                    document.getElementById('rangeVTarget').value = centerData.targetV;
+                    document.getElementById('numVTarget').value = centerData.targetV;
+                    
                     document.getElementById('rangeS0').value = centerData.s0;
                     document.getElementById('numS0').value = centerData.s0;
+                    document.getElementById('rangeS0Target').value = centerData.targetS0;
+                    document.getElementById('numS0Target').value = centerData.targetS0;
                     
                     updateCenter(centerData.lat, centerData.lng);
                     if (data.spots) data.spots.forEach(s => addSpot(s.lat, s.lng, s));
@@ -456,7 +606,9 @@
         function updateUI() {
             setMode('center');
             setupCenterSync('rangeV', 'numV', 'v');
+            setupCenterSync('rangeVTarget', 'numVTarget', 'targetV');
             setupCenterSync('rangeS0', 'numS0', 's0');
+            setupCenterSync('rangeS0Target', 'numS0Target', 'targetS0');
             calculate();
         }
 
